@@ -1,6 +1,6 @@
 import sys
-from PyQt5.QtWidgets import QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
-from PyQt5.QtCore import QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl
+from PyQt5.QtWidgets import QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
+from PyQt5.QtCore import QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtGui import QDesktopServices
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -8,6 +8,22 @@ from matplotlib.figure import Figure
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+
+class FileDragDrop(QLabel):
+    fileDropped = pyqtSignal(str)
+
+    def __init__(self, title, parent=None):
+        super(FileDragDrop, self).__init__(title, parent)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            url = event.mimeData().urls()[0].toLocalFile()
+            self.fileDropped.emit(url)
 
 class MPLWidget(QWidget):
     def __init__(self, parent=None):
@@ -57,85 +73,84 @@ class MainWindow(QWidget):
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabBar(AnimatedTabBar())
         self.layout.addWidget(self.tab_widget)
-
+        self.graph1 = None
+        self.graph = None
+        
         # Create tabs
 
         # Tab 1
-        def draw_cos_wave():
-            # Clear the current plot
-            self.graph1.figure.clear()
-
-            # Create a new plot
-            ax = self.graph1.figure.add_subplot(111)
-            x = np.linspace(0, 10, 100)
-            line, = ax.plot(x, np.cos(x))
-
-            def animate(i):
-                line.set_ydata(np.cos(x + i / 10.0))  # update the data
-                return line,
-
-            # Init only required for blitting to give a clean slate.
-            def init():
-                line.set_ydata(np.ma.array(x, mask=True))
-                return line,
-
-            ani = FuncAnimation(self.graph1.figure, animate, np.arange(1, 200), init_func=init,
-                                interval=50, blit=True)
-
-            # Redraw the canvas
-            self.graph1.canvas.draw()
-
         self.tab1 = QWidget()
         self.tab_widget.addTab(self.tab1, "Run Tests")
-        # self.tab1_layout = QVBoxLayout(self.tab1)
-        # self.run_tests_button = QPushButton("Run Tests")
-        # self.run_tests_button.clicked.connect(self.run_tests)
-        # self.tab1_layout.addWidget(self.run_tests_button)
-        self.tab1_layout = QHBoxLayout(self.tab1)
+
+        # Create a main layout
+        self.main_layout = QHBoxLayout(self.tab1)
         # Add MPLWidget to the left side of the layout
         self.graph1 = MPLWidget()
-        self.tab1_layout.addWidget(self.graph1)
-        # Add "Run" button to the right side of the layout
+        self.main_layout.addWidget(self.graph1)
+
+        # Create a QVBoxLayout for the right side of the layout
+        self.right_layout = QVBoxLayout()
+
+        # Create a QWidget for the right side of the layout
+        self.right_widget = QWidget()
+        self.right_widget.setFixedWidth(400)
+        self.right_widget.setLayout(self.right_layout)
+
+        # Add "Choose dataset" label to the top of the right layout
+        self.choose_dataset_label = QLabel("Choose dataset")
+        self.choose_dataset_label.setObjectName("choose_dataset_label")
+        self.right_layout.addWidget(self.choose_dataset_label)
+
+        # Add drag and drop area
+        self.file_drag_drop = FileDragDrop("")
+        self.file_drag_drop.fileDropped.connect(self.file_dropped)
+        self.right_layout.addWidget(self.file_drag_drop)
+
+        # Create a QVBoxLayout for the drag and drop label and the "Browse" button
+        self.drag_drop_layout = QVBoxLayout()
+        self.drag_drop_label = QLabel("Drag and drop file here")
+        self.file_drag_drop.setObjectName("file_drag_drop")
+        self.drag_drop_label.setAlignment(Qt.AlignCenter)
+        self.drag_drop_layout.addWidget(self.drag_drop_label)
+
+        # Create a QHBoxLayout for the "Browse" button
+        self.browse_layout = QHBoxLayout()
+        self.browse_button = QPushButton("Browse")
+        self.browse_button.setObjectName("browse_button")
+        self.browse_button.clicked.connect(self.browse_file)
+        self.browse_layout.addWidget(self.browse_button)
+        self.browse_layout.setAlignment(Qt.AlignCenter)
+
+        # Add the "Browse" button layout to the drag and drop layout
+        self.drag_drop_layout.addLayout(self.browse_layout)
+
+        # Add the drag and drop layout to the drag and drop area
+        self.file_drag_drop.setLayout(self.drag_drop_layout)
+
+        # Add "Add solutions" label
+        self.add_solutions_label = QLabel("Add solutions")
+        self.add_solutions_label.setObjectName("add_solutions_label")
+        self.right_layout.addWidget(self.add_solutions_label)
+
+        # Add plus button
+        self.plus_button = QPushButton("+")
+        self.right_layout.addWidget(self.plus_button)
+
+        # Add "Run" button to the bottom of the right layout
         self.run_button = QPushButton("Run")
-        self.run_button.clicked.connect(draw_cos_wave)
-        self.tab1_layout.addWidget(self.run_button)
+        self.run_button.clicked.connect(self.draw_cos_wave)
+        self.right_layout.addWidget(self.run_button)
 
+        # Add the right layout to the main layout
+        self.main_layout.addWidget(self.right_widget)
+        
         # Tab 2
-        def update_plot():
-            mean = self.mean_slider.value()
-            std_dev = self.std_slider.value()
-            # Clear the current plot
-            self.graph.figure.clear()
-            # Create a new plot
-            ax = self.graph.figure.add_subplot(111)
-            x = np.linspace(-10, 10, 100)
-            y = (1 / (np.sqrt(2 * np.pi * std_dev**2))) * np.exp(-((x - mean)**2) / (2 * std_dev**2))
-            ax.plot(x, y)
-            # Redraw the canvas
-            self.graph.canvas.draw()
         self.tab2 = QWidget()
-        self.tab_widget.addTab(self.tab2, "Generate Data/Inspect Data")
-
-        # self.tab2_layout = QHBoxLayout(self.tab2)
-        # self.graph = MPLWidget()
-        # self.tab2_layout.addWidget(self.graph)
-        # self.controls = QWidget()
-        # self.controls_layout = QVBoxLayout(self.controls)
-        # self.tab2_layout.addWidget(self.controls)
-        # self.mean_label = QLabel("Mean:")
-        # self.mean_text = QTextEdit()
-        # self.controls_layout.addWidget(self.mean_label)
-        # self.controls_layout.addWidget(self.mean_text)
-        # self.std_label = QLabel("Standard Deviation:")
-        # self.std_text = QTextEdit()
-        # self.controls_layout.addWidget(self.std_label)
-        # self.controls_layout.addWidget(self.std_text)
+        self.tab_widget.addTab(self.tab2, "Generate Data")
         self.tab2_layout = QHBoxLayout(self.tab2)
-
         # Add MPLWidget to the left side of the layout
         self.graph = MPLWidget()
         self.tab2_layout.addWidget(self.graph)
-
         # Add controls to the right side of the layout
         self.controls = QWidget()
         self.controls_layout = QVBoxLayout(self.controls)
@@ -145,7 +160,7 @@ class MainWindow(QWidget):
         self.mean_slider = QSlider(Qt.Horizontal)
         self.mean_slider.setMinimum(-100)
         self.mean_slider.setMaximum(100)
-        self.mean_slider.valueChanged.connect(update_plot)
+        self.mean_slider.valueChanged.connect(self.update_plot)
         self.controls_layout.addWidget(self.mean_label)
         self.controls_layout.addWidget(self.mean_slider)
 
@@ -153,7 +168,7 @@ class MainWindow(QWidget):
         self.std_slider = QSlider(Qt.Horizontal)
         self.std_slider.setMinimum(1)
         self.std_slider.setMaximum(100)
-        self.std_slider.valueChanged.connect(update_plot)
+        self.std_slider.valueChanged.connect(self.update_plot)
         self.controls_layout.addWidget(self.std_label)
         self.controls_layout.addWidget(self.std_slider)
 
@@ -194,6 +209,38 @@ class MainWindow(QWidget):
         with open('styles.qss', 'r') as f:
             self.setStyleSheet(f.read())
 
+    def draw_cos_wave(self):
+        self.graph1.figure.clear()
+        ax = self.graph1.figure.add_subplot(111)
+        x = np.linspace(0, 10, 100)
+        line, = ax.plot(x, np.cos(x))
+
+        def animate(i):
+            line.set_ydata(np.cos(x + i / 10.0))  
+            return line,
+    
+        # Init only required for blitting to give a clean slate.
+        def init():
+            line.set_ydata(np.ma.array(x, mask=True))
+            return line,
+        ani = FuncAnimation(self.graph1.figure, animate, np.arange(1, 200), init_func=init,
+                            interval=50, blit=True)
+        self.graph1.canvas.draw()
+
+    def update_plot(self):
+        mean = self.mean_slider.value()
+        std_dev = self.std_slider.value()
+        # Clear the current plot
+        self.graph.figure.clear()
+        # Create a new plot
+        ax = self.graph.figure.add_subplot(111)
+        x = np.linspace(-10, 10, 100)
+        y = (1 / (np.sqrt(2 * np.pi * std_dev**2))) * np.exp(-((x - mean)**2) / (2 * std_dev**2))
+        ax.plot(x, y)
+        # Redraw the canvas
+        self.graph.canvas.draw()
+
+
     def open_link(self, url):
         QDesktopServices.openUrl(url)
 
@@ -204,10 +251,25 @@ class MainWindow(QWidget):
     def generate_data(self):
         # Add code to generate and inspect data
         pass
+    
+    def choose_dataset(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.ReadOnly
+        file_name, _ = QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "", "All Files (*);;Python Files (*.py)", options=options)
+        if file_name:
+            self.dataset_label.setText(file_name)
+
+    def browse_file(self):
+        file_name, _ = QFileDialog.getOpenFileName(self, "Browse", "", "All Files (*)")
+        if file_name:
+            self.file_drag_drop.setText(file_name)
+
+    def file_dropped(self, file_name):
+        self.file_drag_drop.setText(file_name)
 
 if __name__ == "__main__":
     app = QApplication([])
     window = MainWindow()
-    window.setGeometry(100, 100, 800, 600)
+    window.setGeometry(100, 100, 1200, 800)
     window.show()
     app.exec_()

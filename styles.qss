@@ -9,8 +9,6 @@ QTabBar::tab {
     margin: 4px;
 }
 
-
-
 QTabBar::tab:selected {
     background-color: #2980b9;
 }
@@ -24,6 +22,32 @@ QPushButton {
     border-radius: 10px; 
 }
 
-QTextEdit#aboutText {
+/* Choose dataset label */
+QLabel#choose_dataset_label {
+    font-size: 18px;
+    font-weight: bold;
+}
+QLabel#add_solutions_label {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* Drag and drop area */
+QLabel#file_drag_drop {
+    border: 2px dashed #999999;
+    border-radius: 10px;
+    background-color: #f0f0f0;
+    font-size: 20px;
+}
+
+/* Browse button */
+QPushButton#browse_button {
+    font-size: 14px;
+    font-weight: bold;
+    background-color: #2ecc71;
+    color: white;
+}
+
+QTextBrowser#aboutText {
     background-color: transparent;
 }
