@@ -1,13 +1,14 @@
 import sys
-from PyQt6.QtWidgets import QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
+import os
+from PyQt6.QtWidgets import QComboBox, QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
 from PyQt6.QtCore import QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QTextCursor
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QTextCursor, QDesktopServices
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+import seaborn as sns
 
 class FileDragDrop(QLabel):
     fileDropped = pyqtSignal(str)
@@ -65,6 +66,33 @@ class AnimatedTabBar(QTabBar):
         to_rect = self.tabRect(index)
         self.animateMoveTab(from_rect, to_rect)
 
+class ComboBoxWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.layout = QHBoxLayout(self)
+        self.combo_box = QComboBox()
+        self.combo_box.addItems(["naive", "genetic programming", "evolutionary programming"])
+        self.delete_button = QPushButton("🗑️")
+        self.delete_button.clicked.connect(self.delete_self)
+        self.layout.addWidget(self.combo_box)
+        self.layout.addWidget(self.delete_button)
+
+    def delete_self(self):
+        self.deleteLater()
+
+class AlgorithmSelectionWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.layout = QVBoxLayout(self)
+        self.plus_button = QPushButton("+")
+        self.plus_button.clicked.connect(self.add_combo_box)
+        self.layout.addWidget(self.plus_button)
+        self.layout.setAlignment(self.plus_button, Qt.AlignmentFlag.AlignCenter)
+
+    def add_combo_box(self):
+        combo_box_widget = ComboBoxWidget()
+        self.layout.addWidget(combo_box_widget)
+
 class MainWindow(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -75,6 +103,8 @@ class MainWindow(QWidget):
         self.layout.addWidget(self.tab_widget)
         self.graph1 = None
         self.graph = None
+        self.datast_path = ""
+        self.solutions_paths = []
         
         # Create tabs
 
@@ -86,6 +116,8 @@ class MainWindow(QWidget):
         self.main_layout = QHBoxLayout(self.tab1)
         # Add MPLWidget to the left side of the layout
         self.graph1 = MPLWidget()
+        #plt.style.use('ggplot')  # 'ggplot' is a popular style that emulates the aesthetics of ggplot in R.
+        sns.set_theme()
         self.main_layout.addWidget(self.graph1)
 
         # Create a QVBoxLayout for the right side of the layout
@@ -103,13 +135,14 @@ class MainWindow(QWidget):
 
         # Add drag and drop area
         self.file_drag_drop = FileDragDrop("")
+        self.file_drag_drop.setObjectName("file_drag_drop")
+        self.file_drag_drop.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.file_drag_drop.fileDropped.connect(self.file_dropped)
         self.right_layout.addWidget(self.file_drag_drop)
 
         # Create a QVBoxLayout for the drag and drop label and the "Browse" button
         self.drag_drop_layout = QVBoxLayout()
         self.drag_drop_label = QLabel("Drag and drop file here")
-        self.file_drag_drop.setObjectName("file_drag_drop")
         self.drag_drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.drag_drop_layout.addWidget(self.drag_drop_label)
 
@@ -118,8 +151,8 @@ class MainWindow(QWidget):
         self.browse_button = QPushButton("Browse")
         self.browse_button.setObjectName("browse_button")
         self.browse_button.clicked.connect(self.browse_file)
-        self.browse_layout.addWidget(self.browse_button)
         self.browse_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.browse_layout.addWidget(self.browse_button)
 
         # Add the "Browse" button layout to the drag and drop layout
         self.drag_drop_layout.addLayout(self.browse_layout)
@@ -132,9 +165,12 @@ class MainWindow(QWidget):
         self.add_solutions_label.setObjectName("add_solutions_label")
         self.right_layout.addWidget(self.add_solutions_label)
 
-        # Add plus button
-        self.plus_button = QPushButton("+")
-        self.right_layout.addWidget(self.plus_button)
+        # Create an MPLWidget
+        self.algorithm_combo_widget = AlgorithmSelectionWidget()
+
+        # Add the MPLWidget to the right layout
+        self.right_layout.addWidget(self.algorithm_combo_widget)
+
 
         # Add "Run" button to the bottom of the right layout
         self.run_button = QPushButton("Run")
@@ -262,10 +298,15 @@ class MainWindow(QWidget):
     def browse_file(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Browse", "", "All Files (*)")
         if file_name:
-            self.file_drag_drop.setText(file_name)
+            self.datast_path = file_name
+            base_name = os.path.basename(file_name)
+            self.file_drag_drop.setText(base_name)
 
     def file_dropped(self, file_name):
-        self.file_drag_drop.setText(file_name)
+        if file_name:
+            self.datast_path = file_name
+            base_name = os.path.basename(file_name)
+            self.file_drag_drop.setText(base_name)
 
 if __name__ == "__main__":
     app = QApplication([])

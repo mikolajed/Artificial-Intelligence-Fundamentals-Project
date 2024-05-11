@@ -38,6 +38,7 @@ QLabel#file_drag_drop {
     border-radius: 10px;
     background-color: #f0f0f0;
     font-size: 20px;
+    text-align: center;
 }
 
 /* Browse button */
