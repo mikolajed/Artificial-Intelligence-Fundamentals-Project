@@ -1,8 +1,8 @@
 import sys
-from PyQt5.QtWidgets import QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
-from PyQt5.QtCore import QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QTextCursor
-from PyQt5.QtGui import QDesktopServices
+from PyQt6.QtWidgets import QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
+from PyQt6.QtCore import QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QTextCursor
+from PyQt6.QtGui import QDesktopServices
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
@@ -110,7 +110,7 @@ class MainWindow(QWidget):
         self.drag_drop_layout = QVBoxLayout()
         self.drag_drop_label = QLabel("Drag and drop file here")
         self.file_drag_drop.setObjectName("file_drag_drop")
-        self.drag_drop_label.setAlignment(Qt.AlignCenter)
+        self.drag_drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.drag_drop_layout.addWidget(self.drag_drop_label)
 
         # Create a QHBoxLayout for the "Browse" button
@@ -119,7 +119,7 @@ class MainWindow(QWidget):
         self.browse_button.setObjectName("browse_button")
         self.browse_button.clicked.connect(self.browse_file)
         self.browse_layout.addWidget(self.browse_button)
-        self.browse_layout.setAlignment(Qt.AlignCenter)
+        self.browse_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Add the "Browse" button layout to the drag and drop layout
         self.drag_drop_layout.addLayout(self.browse_layout)
@@ -157,7 +157,7 @@ class MainWindow(QWidget):
         self.tab2_layout.addWidget(self.controls)
 
         self.mean_label = QLabel("Mean:")
-        self.mean_slider = QSlider(Qt.Horizontal)
+        self.mean_slider = QSlider(Qt.Orientation.Horizontal)
         self.mean_slider.setMinimum(-100)
         self.mean_slider.setMaximum(100)
         self.mean_slider.valueChanged.connect(self.update_plot)
@@ -165,7 +165,7 @@ class MainWindow(QWidget):
         self.controls_layout.addWidget(self.mean_slider)
 
         self.std_label = QLabel("Standard Deviation:")
-        self.std_slider = QSlider(Qt.Horizontal)
+        self.std_slider = QSlider(Qt.Orientation.Horizontal)
         self.std_slider.setMinimum(1)
         self.std_slider.setMaximum(100)
         self.std_slider.valueChanged.connect(self.update_plot)
@@ -272,4 +272,4 @@ if __name__ == "__main__":
     window = MainWindow()
     window.setGeometry(100, 100, 1200, 800)
     window.show()
-    app.exec_()
+    sys.exit(app.exec())
