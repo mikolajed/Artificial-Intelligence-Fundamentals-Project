@@ -20,6 +20,7 @@ QPushButton {
     padding: 5px 10px;
     border: none;
     border-radius: 10px; 
+    font-weight: bold;
 }
 
 /* Choose dataset label */

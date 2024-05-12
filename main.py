@@ -1,7 +1,9 @@
 import sys
 import os
-from PyQt6.QtWidgets import QComboBox, QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
-from PyQt6.QtCore import QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl, pyqtSignal
+import subprocess
+import time
+from PyQt6.QtWidgets import QScrollArea, QComboBox, QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
+from PyQt6.QtCore import QThread, QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QDesktopServices
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -9,6 +11,41 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import seaborn as sns
+
+class Worker(QThread):
+    data_ready = pyqtSignal(int, float)  # signal to emit n and run_time
+
+    def run(self):
+         # Directory containing .in files
+        directory = "data/positive"
+
+        # Lists to store n values and corresponding run times
+        n_values = []
+        run_times = []
+        i = 0
+
+        # Iterate over all files in the directory
+        for filename in os.listdir(directory):
+            i += 1
+            if filename.endswith(".in"):
+                # Construct full file path
+                file_path = os.path.join(directory, filename)
+
+                # Open the file and read the first line to get n
+                with open(file_path, 'r') as file:
+                    n = int(file.readline().strip())
+                    #n_values.append(n)
+                    n_values.append(i)
+
+                # Run the script and measure the time taken
+                start_time = time.time()
+                subprocess.run(["python", "naive.py"], stdin=open(file_path, 'r'))
+                end_time = time.time()
+
+                # Calculate and store the run time
+                run_time = end_time - start_time
+       
+                self.data_ready.emit(i, run_time)
 
 class FileDragDrop(QLabel):
     fileDropped = pyqtSignal(str)
@@ -91,6 +128,7 @@ class AlgorithmSelectionWidget(QWidget):
 
     def add_combo_box(self):
         combo_box_widget = ComboBoxWidget()
+        combo_box_widget.delete_button.setStyleSheet("background-color: transparent")
         self.layout.addWidget(combo_box_widget)
 
 class MainWindow(QWidget):
@@ -101,52 +139,52 @@ class MainWindow(QWidget):
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabBar(AnimatedTabBar())
         self.layout.addWidget(self.tab_widget)
-        self.graph1 = None
+        # Graphs
+        self.time_graph = None
+
         self.graph = None
         self.datast_path = ""
         self.solutions_paths = []
         
         # Create tabs
+        self.tab1_init()
+        self.tab2_init()
+        self.tab3_init()
 
-        # Tab 1
+        with open('styles.qss', 'r') as f:
+            self.setStyleSheet(f.read())
+
+    def tab1_init(self):
         self.tab1 = QWidget()
         self.tab_widget.addTab(self.tab1, "Run Tests")
 
-        # Create a main layout
         self.main_layout = QHBoxLayout(self.tab1)
-        # Add MPLWidget to the left side of the layout
-        self.graph1 = MPLWidget()
+        self.time_graph = MPLWidget()
         #plt.style.use('ggplot')  # 'ggplot' is a popular style that emulates the aesthetics of ggplot in R.
         sns.set_theme()
-        self.main_layout.addWidget(self.graph1)
+        self.main_layout.addWidget(self.time_graph)
 
-        # Create a QVBoxLayout for the right side of the layout
         self.right_layout = QVBoxLayout()
 
-        # Create a QWidget for the right side of the layout
         self.right_widget = QWidget()
         self.right_widget.setFixedWidth(400)
         self.right_widget.setLayout(self.right_layout)
 
-        # Add "Choose dataset" label to the top of the right layout
         self.choose_dataset_label = QLabel("Choose dataset")
         self.choose_dataset_label.setObjectName("choose_dataset_label")
         self.right_layout.addWidget(self.choose_dataset_label)
 
-        # Add drag and drop area
         self.file_drag_drop = FileDragDrop("")
         self.file_drag_drop.setObjectName("file_drag_drop")
         self.file_drag_drop.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.file_drag_drop.fileDropped.connect(self.file_dropped)
         self.right_layout.addWidget(self.file_drag_drop)
 
-        # Create a QVBoxLayout for the drag and drop label and the "Browse" button
         self.drag_drop_layout = QVBoxLayout()
         self.drag_drop_label = QLabel("Drag and drop file here")
         self.drag_drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.drag_drop_layout.addWidget(self.drag_drop_label)
 
-        # Create a QHBoxLayout for the "Browse" button
         self.browse_layout = QHBoxLayout()
         self.browse_button = QPushButton("Browse")
         self.browse_button.setObjectName("browse_button")
@@ -154,33 +192,22 @@ class MainWindow(QWidget):
         self.browse_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.browse_layout.addWidget(self.browse_button)
 
-        # Add the "Browse" button layout to the drag and drop layout
         self.drag_drop_layout.addLayout(self.browse_layout)
-
-        # Add the drag and drop layout to the drag and drop area
         self.file_drag_drop.setLayout(self.drag_drop_layout)
 
-        # Add "Add solutions" label
         self.add_solutions_label = QLabel("Add solutions")
         self.add_solutions_label.setObjectName("add_solutions_label")
         self.right_layout.addWidget(self.add_solutions_label)
-
-        # Create an MPLWidget
         self.algorithm_combo_widget = AlgorithmSelectionWidget()
-
-        # Add the MPLWidget to the right layout
         self.right_layout.addWidget(self.algorithm_combo_widget)
 
-
-        # Add "Run" button to the bottom of the right layout
         self.run_button = QPushButton("Run")
-        self.run_button.clicked.connect(self.draw_cos_wave)
+        self.run_button.clicked.connect(self.run_tests)
         self.right_layout.addWidget(self.run_button)
 
-        # Add the right layout to the main layout
         self.main_layout.addWidget(self.right_widget)
-        
-        # Tab 2
+
+    def tab2_init(self):
         self.tab2 = QWidget()
         self.tab_widget.addTab(self.tab2, "Generate Data")
         self.tab2_layout = QHBoxLayout(self.tab2)
@@ -208,7 +235,7 @@ class MainWindow(QWidget):
         self.controls_layout.addWidget(self.std_label)
         self.controls_layout.addWidget(self.std_slider)
 
-        # Tab 3
+    def tab3_init(self):
         self.tab3 = QWidget()
         self.tab_widget.addTab(self.tab3, "About the Project")
         self.tab3_layout = QVBoxLayout(self.tab3)
@@ -241,10 +268,7 @@ class MainWindow(QWidget):
             </p>
         """)
         self.tab3_layout.addWidget(self.about_text)
-
-        with open('styles.qss', 'r') as f:
-            self.setStyleSheet(f.read())
-
+        
     def draw_cos_wave(self):
         self.graph1.figure.clear()
         ax = self.graph1.figure.add_subplot(111)
@@ -276,13 +300,34 @@ class MainWindow(QWidget):
         # Redraw the canvas
         self.graph.canvas.draw()
 
-
     def open_link(self, url):
         QDesktopServices.openUrl(url)
 
     def run_tests(self):
-        # Add code to run tests and visualize results
-        pass
+        self.n_values = []
+        self.run_times = []
+
+        self.worker = Worker()
+        self.worker.data_ready.connect(self.update_graph)
+        self.worker.start()
+
+    def update_graph(self, n, run_time):
+        self.n_values.append(n)
+        self.run_times.append(run_time)
+
+        # Clear the figure associated with self.graph1
+        self.time_graph.figure.clear()
+
+        # Create a new axes on this figure
+        ax = self.time_graph.figure.add_subplot(111)
+
+        # Plot the run times against the n values on these axes
+        ax.plot(self.n_values, self.run_times)
+        ax.set_xlabel('n')
+        ax.set_ylabel('Run Time (seconds)')
+
+        # Redraw the canvas (this is equivalent to plt.show() in interactive mode)
+        self.time_graph.canvas.draw()
 
     def generate_data(self):
         # Add code to generate and inspect data
