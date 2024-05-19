@@ -44,9 +44,9 @@ class Worker(QThread):
                 n = int(file.readline().strip())
 
             # Run the script and measure the time taken
-            start_time = time.time()
+            start_time = time.process_time()
             subprocess.run(["python", self.solution.path], stdin=open(file_path, 'r'))
-            end_time = time.time()
+            end_time = time.process_time()
 
             # Calculate and store the run time
             run_time = end_time - start_time
@@ -170,7 +170,7 @@ class MainWindow(QWidget):
         
         # Create tabs
         self.tab1_init()
-        self.tab2_init()
+        #self.tab2_init()
         self.tab3_init()
 
         with open('styles.qss', 'r') as f:
@@ -228,6 +228,9 @@ class MainWindow(QWidget):
         self.right_layout.addWidget(self.run_button)
 
         self.main_layout.addWidget(self.right_widget)
+
+        self.empty_graph()
+        
 
     def tab2_init(self):
         self.tab2 = QWidget()
@@ -349,13 +352,31 @@ class MainWindow(QWidget):
         self.locate_files()
         self.create_solutions()
        
-        self.worker = Worker(solutions[0])
-        self.worker.data_ready.connect(self.update_graph)
-        self.worker.finished.connect(self.worker_finished)
-        self.worker.start()
+        self.workers = []
+        for solution in solutions:
+            worker = Worker(solution)
+            worker.data_ready.connect(self.update_graph)
+            worker.finished.connect(self.worker_finished)
+            self.workers.append(worker)
+
+        for worker in self.workers:
+            worker.start()
 
     def worker_finished(self):
         QMessageBox.information(self, "Info", "All tests have been run")
+
+    def empty_graph(self):
+        self.time_graph.figure.clear()
+
+        # Create a new axes on this figure
+        ax = self.time_graph.figure.add_subplot(111)
+
+        ax.legend()
+        ax.set_xlabel('n')
+        ax.set_ylabel('Run Time (seconds)')
+
+        # Redraw the canvas (this is equivalent to plt.show() in interactive mode)
+        self.time_graph.canvas.draw()
 
     def update_graph(self, i, n, run_time):
         self.time_graph.figure.clear()
