@@ -2,7 +2,7 @@ import sys
 import os
 import subprocess
 import time
-from PyQt6.QtWidgets import QScrollArea, QComboBox, QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
+from PyQt6.QtWidgets import QScrollArea, QMessageBox, QComboBox, QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
 from PyQt6.QtCore import QThread, QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QDesktopServices
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -12,40 +12,49 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import seaborn as sns
 
+class Solution:
+    def __init__(self, name, path):
+        self.name = name
+        self.path = path
+        self.TN = 0
+        self.FP = 0
+        self.FN = 0
+        self.TP = 0
+        self.run_times = []
+        self.n_values = []
+
+solutions = []
+dataset_path = "data/positive"
+in_files = []
+out_files = []
+
 class Worker(QThread):
-    data_ready = pyqtSignal(int, float)  # signal to emit n and run_time
+    data_ready = pyqtSignal(int, int, float)  # signal to emit n and run_time
+
+    def __init__(self, solution, parent=None):
+        super().__init__(parent)
+        self.solution = solution
 
     def run(self):
-         # Directory containing .in files
-        directory = "data/positive"
-
-        # Lists to store n values and corresponding run times
-        n_values = []
-        run_times = []
         i = 0
-
         # Iterate over all files in the directory
-        for filename in os.listdir(directory):
+        for file_path in in_files:
             i += 1
-            if filename.endswith(".in"):
-                # Construct full file path
-                file_path = os.path.join(directory, filename)
+            with open(file_path, 'r') as file:
+                n = int(file.readline().strip())
 
-                # Open the file and read the first line to get n
-                with open(file_path, 'r') as file:
-                    n = int(file.readline().strip())
-                    #n_values.append(n)
-                    n_values.append(i)
+            # Run the script and measure the time taken
+            start_time = time.time()
+            subprocess.run(["python", self.solution.path], stdin=open(file_path, 'r'))
+            end_time = time.time()
 
-                # Run the script and measure the time taken
-                start_time = time.time()
-                subprocess.run(["python", "naive.py"], stdin=open(file_path, 'r'))
-                end_time = time.time()
+            # Calculate and store the run time
+            run_time = end_time - start_time
 
-                # Calculate and store the run time
-                run_time = end_time - start_time
-       
-                self.data_ready.emit(i, run_time)
+            self.solution.run_times.append(run_time)
+            self.solution.n_values.append(n)
+
+            self.data_ready.emit(i, n, run_time)
 
 class FileDragDrop(QLabel):
     fileDropped = pyqtSignal(str)
@@ -120,17 +129,32 @@ class ComboBoxWidget(QWidget):
 class AlgorithmSelectionWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+
         self.layout = QVBoxLayout(self)
+
+        self.top_layout = QVBoxLayout()
+        self.layout.addLayout(self.top_layout)
+
+        self.bottom_layout = QVBoxLayout()
+        self.layout.addLayout(self.bottom_layout)
         self.plus_button = QPushButton("+")
         self.plus_button.clicked.connect(self.add_combo_box)
-        self.layout.addWidget(self.plus_button)
-        self.layout.setAlignment(self.plus_button, Qt.AlignmentFlag.AlignCenter)
+        self.bottom_layout.addWidget(self.plus_button)
+        self.bottom_layout.setAlignment(self.plus_button, Qt.AlignmentFlag.AlignCenter)
 
     def add_combo_box(self):
         combo_box_widget = ComboBoxWidget()
         combo_box_widget.delete_button.setStyleSheet("background-color: transparent")
-        self.layout.addWidget(combo_box_widget)
+        self.top_layout.addWidget(combo_box_widget)
 
+    def get_algorithm_names(self):
+        algorithm_names = []
+        for i in range(self.top_layout.count()):
+            combo_box_widget = self.top_layout.itemAt(i).widget()
+            combo_box = combo_box_widget.combo_box
+            algorithm_names.append(combo_box.currentText())
+        return algorithm_names
+    
 class MainWindow(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -143,8 +167,6 @@ class MainWindow(QWidget):
         self.time_graph = None
 
         self.graph = None
-        self.datast_path = ""
-        self.solutions_paths = []
         
         # Create tabs
         self.tab1_init()
@@ -303,26 +325,49 @@ class MainWindow(QWidget):
     def open_link(self, url):
         QDesktopServices.openUrl(url)
 
-    def run_tests(self):
-        self.n_values = []
-        self.run_times = []
+    def create_solutions(self):
+        for solution_name in self.algorithm_combo_widget.get_algorithm_names():
+            solution_path = ""
+            if solution_name == "naive":
+                solution_path = "naive.py"
+            elif solution_name == "genetic programming":
+                solution_path = "genetic_programming.py"
+            elif solution_name == "evolutionary programming":
+                solution_path = "evolutionary_programming.py"
+            solution = Solution(solution_name, solution_path)
+            solutions.append(solution)
 
-        self.worker = Worker()
+    def locate_files(self):
+        for filepath in os.listdir(dataset_path):
+            fullpath = os.path.join(dataset_path, filepath)
+            if fullpath.endswith(".in"):
+                in_files.append(fullpath)
+            elif fullpath.endswith(".out"):
+                out_files.append(fullpath)
+
+    def run_tests(self):
+        self.locate_files()
+        self.create_solutions()
+       
+        self.worker = Worker(solutions[0])
         self.worker.data_ready.connect(self.update_graph)
+        self.worker.finished.connect(self.worker_finished)
         self.worker.start()
 
-    def update_graph(self, n, run_time):
-        self.n_values.append(n)
-        self.run_times.append(run_time)
+    def worker_finished(self):
+        QMessageBox.information(self, "Info", "All tests have been run")
 
-        # Clear the figure associated with self.graph1
+    def update_graph(self, i, n, run_time):
         self.time_graph.figure.clear()
 
         # Create a new axes on this figure
         ax = self.time_graph.figure.add_subplot(111)
 
-        # Plot the run times against the n values on these axes
-        ax.plot(self.n_values, self.run_times)
+        for solution in solutions:
+            #ax.plot(solution.n_values, solution.run_times)
+            ax.scatter(solution.n_values, solution.run_times, label=solution.name)
+
+        ax.legend()
         ax.set_xlabel('n')
         ax.set_ylabel('Run Time (seconds)')
 
@@ -343,13 +388,13 @@ class MainWindow(QWidget):
     def browse_file(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Browse", "", "All Files (*)")
         if file_name:
-            self.datast_path = file_name
+            dataset_path = file_name
             base_name = os.path.basename(file_name)
             self.file_drag_drop.setText(base_name)
 
     def file_dropped(self, file_name):
         if file_name:
-            self.datast_path = file_name
+            dataset_path = file_name
             base_name = os.path.basename(file_name)
             self.file_drag_drop.setText(base_name)
 
