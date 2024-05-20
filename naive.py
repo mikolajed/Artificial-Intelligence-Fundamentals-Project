@@ -1,4 +1,7 @@
-def is_subset_sum(arr, n, target):
+import IO
+
+def is_subset_sum(arr, target):
+    n = len(arr)
     # Base cases
     if target == 0:
         return True
@@ -12,13 +15,9 @@ def is_subset_sum(arr, n, target):
     # Check if sum can be obtained by including or excluding the last element
     return is_subset_sum(arr, n-1, target) or is_subset_sum(arr, n-1, target-arr[n-1])
 
-# Get data from the console
-n = int(input())        # Number of elements in the list
-target = int(input())   # Target sum
+S, t = IO.get_data()
 
-arr = [int(x) for x in input().split(' ')]   # List of values
-
-if is_subset_sum(arr, n, target):
+if is_subset_sum(S, t):
     print("1")
 else:
     print("0")
