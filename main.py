@@ -2,9 +2,9 @@ import sys
 import os
 import subprocess
 import time
-from PyQt6.QtWidgets import QScrollArea, QMessageBox, QComboBox, QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
+from PyQt6.QtWidgets import QTabWidget, QStatusBar, QScrollArea, QMessageBox, QComboBox, QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
 from PyQt6.QtCore import QThread, QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QTextCursor, QDesktopServices
+from PyQt6.QtGui import QTextCursor, QDesktopServices, QIcon
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
@@ -72,13 +72,53 @@ class FileDragDrop(QLabel):
             url = event.mimeData().urls()[0].toLocalFile()
             self.fileDropped.emit(url)
 
-class MPLWidget(QWidget):
+class MPLWidget2(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.figure = Figure(figsize=(5, 4), dpi=100)
         self.canvas = FigureCanvas(self.figure)
         self.layout = QVBoxLayout(self)
         self.layout.addWidget(self.canvas)
+
+class GraphsWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.graphs = {"Accuracy": None, "Fitness": None, "F1": None, "Time": None}
+        self.tab_widget = QTabWidget()
+
+        # Create a layout and add the tab widget to it
+        self.layout = QVBoxLayout(self)
+        self.layout.addWidget(self.tab_widget)
+        # Create a status bar
+        #self.status_bar = QStatusBar()
+        #self.layout.addWidget(self.status_bar)
+
+        # Add labels to the status bar
+        #self.status_bar.showMessage("Accuracy: 0, F1-Score: 0, Time: 0, Fitness: 0")
+
+        sns.set_theme()
+        # Add four graphs
+        self.add_graph("Accuracy")
+        self.add_graph("Fitness")
+        self.add_graph("F1-Score")
+        self.add_graph("Time")
+
+    def add_graph(self, graph_title):
+        # Create a new figure and canvas for the graph
+        figure = Figure(figsize=(5, 4), dpi=100)
+        canvas = FigureCanvas(figure)
+        self.graphs[graph_title] = canvas
+
+        # Add the canvas to a new tab in the tab widget
+        self.tab_widget.addTab(canvas, graph_title)
+        canvas.figure.clear()
+        ax = canvas.figure.add_subplot(111)
+        #ax.legend()
+        ax.set_xlabel('n')
+        ax.set_ylabel(graph_title)
+        
+
+        canvas.draw()
 
 class AnimatedTabBar(QTabBar):
     def __init__(self, parent=None):
@@ -165,8 +205,7 @@ class MainWindow(QWidget):
         self.layout.addWidget(self.tab_widget)
         # Graphs
         self.time_graph = None
-
-        self.graph = None
+        self.graphs = {"Accuracy": None, "Fitness": None, "F1": None, "Time": None}
         
         # Create tabs
         self.tab1_init()
@@ -181,10 +220,8 @@ class MainWindow(QWidget):
         self.tab_widget.addTab(self.tab1, "Run Tests")
 
         self.main_layout = QHBoxLayout(self.tab1)
-        self.time_graph = MPLWidget()
-        #plt.style.use('ggplot')  # 'ggplot' is a popular style that emulates the aesthetics of ggplot in R.
-        sns.set_theme()
-        self.main_layout.addWidget(self.time_graph)
+        self.graphs_widget = GraphsWidget()
+        self.main_layout.addWidget(self.graphs_widget)
 
         self.right_layout = QVBoxLayout()
 
@@ -203,7 +240,7 @@ class MainWindow(QWidget):
         self.right_layout.addWidget(self.file_drag_drop)
 
         self.drag_drop_layout = QVBoxLayout()
-        self.drag_drop_label = QLabel("Drag and drop file here")
+        self.drag_drop_label = QLabel("Drag and drop directory here")
         self.drag_drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.drag_drop_layout.addWidget(self.drag_drop_label)
 
@@ -228,16 +265,13 @@ class MainWindow(QWidget):
         self.right_layout.addWidget(self.run_button)
 
         self.main_layout.addWidget(self.right_widget)
-
-        self.empty_graph()
         
-
     def tab2_init(self):
         self.tab2 = QWidget()
         self.tab_widget.addTab(self.tab2, "Generate Data")
         self.tab2_layout = QHBoxLayout(self.tab2)
         # Add MPLWidget to the left side of the layout
-        self.graph = MPLWidget()
+        self.graph = MPLWidget2()
         self.tab2_layout.addWidget(self.graph)
         # Add controls to the right side of the layout
         self.controls = QWidget()
@@ -363,26 +397,14 @@ class MainWindow(QWidget):
             worker.start()
 
     def worker_finished(self):
-        QMessageBox.information(self, "Info", "All tests have been run")
-
-    def empty_graph(self):
-        self.time_graph.figure.clear()
-
-        # Create a new axes on this figure
-        ax = self.time_graph.figure.add_subplot(111)
-
-        ax.legend()
-        ax.set_xlabel('n')
-        ax.set_ylabel('Run Time (seconds)')
-
-        # Redraw the canvas (this is equivalent to plt.show() in interactive mode)
-        self.time_graph.canvas.draw()
+        QMessageBox.information(self, "Info", "All tests have been run")      
 
     def update_graph(self, i, n, run_time):
-        self.time_graph.figure.clear()
+        graph = self.graphs_widget.graphs["Time"]
+        graph.figure.clear()
 
         # Create a new axes on this figure
-        ax = self.time_graph.figure.add_subplot(111)
+        ax = graph.figure.add_subplot(111)
 
         for solution in solutions:
             #ax.plot(solution.n_values, solution.run_times)
@@ -393,7 +415,7 @@ class MainWindow(QWidget):
         ax.set_ylabel('Run Time (seconds)')
 
         # Redraw the canvas (this is equivalent to plt.show() in interactive mode)
-        self.time_graph.canvas.draw()
+        graph.draw()
 
     def generate_data(self):
         # Add code to generate and inspect data
@@ -402,26 +424,31 @@ class MainWindow(QWidget):
     def choose_dataset(self):
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
-        file_name, _ = QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "", "All Files (*);;Python Files (*.py)", options=options)
-        if file_name:
-            self.dataset_label.setText(file_name)
+        directory_name = QFileDialog.getExistingDirectory(self, "Select a directory", "", options=options)
+        if directory_name:
+            self.dataset_label.setText(directory_name)
 
     def browse_file(self):
-        file_name, _ = QFileDialog.getOpenFileName(self, "Browse", "", "All Files (*)")
-        if file_name:
-            dataset_path = file_name
-            base_name = os.path.basename(file_name)
+        directory_name = QFileDialog.getExistingDirectory(self, "Browse", "")
+        if directory_name:
+            dataset_path = directory_name
+            base_name = os.path.basename(directory_name)
             self.file_drag_drop.setText(base_name)
 
-    def file_dropped(self, file_name):
-        if file_name:
-            dataset_path = file_name
-            base_name = os.path.basename(file_name)
+    def file_dropped(self, directory_name):
+        if directory_name:
+            dataset_path = directory_name
+            base_name = os.path.basename(directory_name)
             self.file_drag_drop.setText(base_name)
 
 if __name__ == "__main__":
-    app = QApplication([])
+    app = QApplication(sys.argv)
+    app.setApplicationName("AI App")  # Set the application name
+    app.setWindowIcon(QIcon("other/rick.gif"))
+    #app.setWindowIcon(QIcon("other/patrick.png")) 
+    #app.setWindowIcon(QIcon("other/ryan.jpg")) 
     window = MainWindow()
     window.setGeometry(100, 100, 1200, 800)
-    window.show()
+    #window.show()
+    window.showFullScreen()
     sys.exit(app.exec())
