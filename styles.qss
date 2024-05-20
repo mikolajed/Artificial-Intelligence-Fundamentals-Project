@@ -23,6 +23,10 @@ QPushButton {
     font-weight: bold;
 }
 
+QPushButton:pressed {
+    background-color: #27ae60;
+}
+
 /* Choose dataset label */
 QLabel#choose_dataset_label {
     font-size: 18px;
