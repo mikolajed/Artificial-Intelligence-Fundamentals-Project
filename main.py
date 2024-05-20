@@ -157,7 +157,7 @@ class ComboBoxWidget(QWidget):
         super().__init__(parent)
         self.layout = QHBoxLayout(self)
         self.combo_box = QComboBox()
-        self.combo_box.addItems(["naive", "genetic programming", "evolutionary programming"])
+        self.combo_box.addItems(["naive", "FPTAS", "genetic algorithm", "evolutionary programming"])
         self.delete_button = QPushButton("🗑️")
         self.delete_button.clicked.connect(self.delete_self)
         self.layout.addWidget(self.combo_box)
@@ -367,8 +367,10 @@ class MainWindow(QWidget):
             solution_path = ""
             if solution_name == "naive":
                 solution_path = "naive.py"
-            elif solution_name == "genetic programming":
-                solution_path = "genetic_programming.py"
+            elif solution_name == "FPTAS":
+                solution_path = "fptas.py"
+            elif solution_name == "genetic algorithm":
+                solution_path = "ga.py"
             elif solution_name == "evolutionary programming":
                 solution_path = "evolutionary_programming.py"
             solution = Solution(solution_name, solution_path)
