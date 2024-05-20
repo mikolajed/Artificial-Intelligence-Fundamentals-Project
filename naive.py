@@ -1,7 +1,6 @@
 import IO
 
-def is_subset_sum(arr, target):
-    n = len(arr)
+def is_subset_sum(arr, n, target):
     # Base cases
     if target == 0:
         return True
@@ -17,7 +16,7 @@ def is_subset_sum(arr, target):
 
 S, t = IO.get_data()
 
-if is_subset_sum(S, t):
+if is_subset_sum(S, len(S), t):
     print("1")
 else:
     print("0")
