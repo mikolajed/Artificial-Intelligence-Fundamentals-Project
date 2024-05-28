@@ -20,6 +20,7 @@ class Solution:
         self.FP = 0
         self.FN = 0
         self.TP = 0
+        self.accuracy = []
         self.run_times = []
         self.n_values = []
 
@@ -43,9 +44,13 @@ class Worker(QThread):
             with open(file_path, 'r') as file:
                 n = int(file.readline().strip())
 
+            out_path = file_path.replace(".in", ".out")
+            with open(out_path, 'r') as out_file:
+                ans = int(out_file.readline().strip())
+
             # Run the script and measure the time taken
             start_time = time.process_time()
-            subprocess.run(["python", self.solution.path], stdin=open(file_path, 'r'))
+            result = subprocess.run(["python", self.solution.path], stdin=open(file_path, 'r'), capture_output=True, text=True)
             end_time = time.process_time()
 
             # Calculate and store the run time
@@ -53,6 +58,21 @@ class Worker(QThread):
 
             self.solution.run_times.append(run_time)
             self.solution.n_values.append(n)
+
+            # Get the output of the subprocess
+            output = int(result.stdout.strip())
+
+            # Update the confusion matrix
+            if ans == 1 and output == 1:
+                self.solution.TP += 1
+            elif ans == 1 and output == 0:
+                self.solution.FN += 1
+            elif ans == 0 and output == 1:
+                self.solution.FP += 1
+            elif ans == 0 and output == 0:
+                self.solution.TN += 1
+
+            self.solution.accuracy.append((self.solution.TP + self.solution.TN) / (self.solution.TP + self.solution.TN + self.solution.FP + self.solution.FN))
 
             self.data_ready.emit(i, n, run_time)
 
@@ -157,7 +177,7 @@ class ComboBoxWidget(QWidget):
         super().__init__(parent)
         self.layout = QHBoxLayout(self)
         self.combo_box = QComboBox()
-        self.combo_box.addItems(["naive", "FPTAS", "genetic algorithm", "evolutionary programming"])
+        self.combo_box.addItems(["naive", "FPTAS", "genetic algorithm", "PSO", "Differential Evolution"])
         self.delete_button = QPushButton("🗑️")
         self.delete_button.clicked.connect(self.delete_self)
         self.layout.addWidget(self.combo_box)
@@ -371,8 +391,10 @@ class MainWindow(QWidget):
                 solution_path = "fptas.py"
             elif solution_name == "genetic algorithm":
                 solution_path = "ga.py"
-            elif solution_name == "evolutionary programming":
-                solution_path = "evolutionary_programming.py"
+            elif solution_name == "PSO":
+                solution_path = "pso.py"
+            elif solution_name == "Differential Evolution":
+                solution_path = "de.py"
             solution = Solution(solution_name, solution_path)
             solutions.append(solution)
 
@@ -415,6 +437,24 @@ class MainWindow(QWidget):
         ax.legend()
         ax.set_xlabel('n')
         ax.set_ylabel('Run Time (seconds)')
+
+        # Redraw the canvas (this is equivalent to plt.show() in interactive mode)
+        graph.draw()
+
+
+        graph = self.graphs_widget.graphs["Accuracy"]
+        graph.figure.clear()
+
+        # Create a new axes on this figure
+        ax = graph.figure.add_subplot(111)
+
+        for solution in solutions:
+            #ax.plot(solution.n_values, solution.run_times)
+            ax.plot(range(1, len(solution.accuracy) + 1), solution.accuracy, label=solution.name)
+
+        ax.legend()
+        ax.set_xlabel('number of tests run')
+        ax.set_ylabel('accuracy')
 
         # Redraw the canvas (this is equivalent to plt.show() in interactive mode)
         graph.draw()
