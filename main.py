@@ -21,9 +21,13 @@ class Solution:
         self.FN = 0
         self.TP = 0
         self.accuracy = []
+        self.score = []
         self.run_times = []
         self.n_values = []
 
+
+confusion_matrix = [[ 2, 1 ], 
+                    [ 0, 0 ] ]
 solutions = []
 dataset_path = "data/positive"
 in_files = []
@@ -72,10 +76,20 @@ class Worker(QThread):
             elif ans == 0 and output == 0:
                 self.solution.TN += 1
 
-            self.solution.accuracy.append((self.solution.TP + self.solution.TN) / (self.solution.TP + self.solution.TN + self.solution.FP + self.solution.FN))
-
+            self.solution.accuracy.append(self.compute_accuracy())
+            self.solution.score.append(self.compute_score())
             self.data_ready.emit(i, n, run_time)
 
+    def compute_score(self):
+        return (confusion_matrix[0][0] * self.solution.TN + 
+                confusion_matrix[0][1] * self.solution.TP + 
+                confusion_matrix[1][0] * self.solution.FN +
+                confusion_matrix[1][1] * self.solution.FP) / max(1, sum(self.solution.run_times))
+    
+
+    def compute_accuracy(self):
+        return (self.solution.TP + self.solution.TN) / (self.solution.TP + self.solution.TN + self.solution.FP + self.solution.FN)
+    
 class FileDragDrop(QLabel):
     fileDropped = pyqtSignal(str)
 
@@ -119,8 +133,8 @@ class GraphsWidget(QWidget):
         sns.set_theme()
         # Add four graphs
         self.add_graph("Accuracy")
-        self.add_graph("Fitness")
-        self.add_graph("F1-Score")
+        self.add_graph("Score")
+        #self.add_graph("F1-Score")
         self.add_graph("Time")
 
     def add_graph(self, graph_title):
@@ -424,37 +438,42 @@ class MainWindow(QWidget):
         QMessageBox.information(self, "Info", "All tests have been run")      
 
     def update_graph(self, i, n, run_time):
+        # Run time olot
         graph = self.graphs_widget.graphs["Time"]
         graph.figure.clear()
-
-        # Create a new axes on this figure
         ax = graph.figure.add_subplot(111)
-
         for solution in solutions:
-            #ax.plot(solution.n_values, solution.run_times)
             ax.scatter(solution.n_values, solution.run_times, label=solution.name)
-
         ax.legend()
-        ax.set_xlabel('n')
+        ax.set_xlabel('n, size of the set S')
         ax.set_ylabel('Run Time (seconds)')
-
-        # Redraw the canvas (this is equivalent to plt.show() in interactive mode)
         graph.draw()
 
-
+        # Accuracy plot
         graph = self.graphs_widget.graphs["Accuracy"]
         graph.figure.clear()
-
-        # Create a new axes on this figure
         ax = graph.figure.add_subplot(111)
-
         for solution in solutions:
             #ax.plot(solution.n_values, solution.run_times)
             ax.plot(range(1, len(solution.accuracy) + 1), solution.accuracy, label=solution.name)
+        ax.legend()
+        ax.set_xlabel('number of tests run')
+        ax.set_ylabel('Accuracy')
+        graph.draw()
+
+        # Score plot
+        graph = self.graphs_widget.graphs["Score"]
+        graph.figure.clear()
+
+        # Create a new axes on this figure
+        ax = graph.figure.add_subplot(111)
+        for solution in solutions:
+            #ax.plot(solution.n_values, solution.run_times)
+            ax.plot(range(1, len(solution.score) + 1), solution.score, label=solution.name)
 
         ax.legend()
         ax.set_xlabel('number of tests run')
-        ax.set_ylabel('accuracy')
+        ax.set_ylabel('Score')
 
         # Redraw the canvas (this is equivalent to plt.show() in interactive mode)
         graph.draw()
