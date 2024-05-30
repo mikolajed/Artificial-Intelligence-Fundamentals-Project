@@ -1,6 +1,6 @@
 # generates data for subset sum problem 
-# generate.py takes commamnd line arguments, 
-# 1. number of files to generat with different target values
+# generate.py takes command line arguments,
+# 1. number of files to generate with different target values
 # 2. n: number of elements in the list
 # 3. type of the data to be generated to one of the built-in types
 # 4. name of the directory to save the data, 
@@ -35,6 +35,29 @@ def generate_positive(num_files, n, data_type, directory=None):
         with open(f"{f'{directory}/n{n}_{data_type}_{i}.out' if directory else f'n{n}_{data_type}_{i}.out'}", "w") as f:
             f.write("1")
 
+# generate only negative cases, the target is a random number that is not in the array or is a sum of a subset
+def generate_negative(num_files, n, data_type, directory=None):
+    for i in range(num_files):
+        arr = np.random.binomial(100, 0.1, n)
+        target = np.random.randint(10000)
+        while target in arr and isSum(arr, target, n):
+            target = np.random.randint(10000)
+        with open(f"{f'{directory}/n{n}_{data_type}_{i}.in' if directory else f'n{n}_{data_type}_{i}.in'}", "w") as f:
+            f.write(f"{n}\n{target}\n")
+            f.write(" ".join(map(str, arr)))
+        with open(f"{f'{directory}/n{n}_{data_type}_{i}.out' if directory else f'n{n}_{data_type}_{i}.out'}", "w") as f:
+            f.write("0")
+
+
+def isSum(arr, number, n):
+    for i in range(0, n, 1):
+        for j in range(0, n, 1):
+            if number == sum(arr[i:j]):
+                return True
+    return False
+
+
+
 if __name__ == "__main__":
     num_files = int(sys.argv[1])
     n = int(sys.argv[2])
@@ -43,5 +66,8 @@ if __name__ == "__main__":
     # Create the directory if it doesn't exist
     if directory and not os.path.exists(directory):
         os.makedirs(directory)
-        
-    generate_positive(num_files, n, data_type, directory)
+
+    if data_type == "positive":
+        generate_positive(num_files, n, data_type, directory)
+    elif data_type == "negative":
+        generate_negative(num_files, n, data_type, directory)
