@@ -33,7 +33,7 @@ toolbox.register("select", tools.selTournament, tournsize=3)
 def main():
     random.seed(42)
     # Create an initial population of 300 individuals
-    population = toolbox.population(n=300)
+    population = toolbox.population(n=64)
     # Define the statistics to collect
     stats = tools.Statistics(lambda ind: ind.fitness.values)
     stats.register("avg", np.mean)
