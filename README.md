@@ -1,5 +1,10 @@
 # Project of Evolutionary Algorithm for Solving Subset Sum Problem
 
+Team members include:
+1. Mikołaj Jędrzejewski
+2. Mateusz Małkiewicz
+3. Piotr Syrokomski
+
 Project implements multiple algorithms, including:
 - evolutionary algorithm (`ga.py`)
 - Fully polynomial-time approximation scheme (`fptas.py`) 
