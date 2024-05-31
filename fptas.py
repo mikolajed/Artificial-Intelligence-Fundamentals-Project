@@ -18,7 +18,7 @@ def ssp_fptas_binary(S, t, epsilon):
             if dp[j - num]:
                 dp[j] = 1
 
-    for j in range(scaled_t, scaled_t_approx + 1):
+    for j in range(scaled_t_approx + 1):
         if dp[j]:
             return 1
 
