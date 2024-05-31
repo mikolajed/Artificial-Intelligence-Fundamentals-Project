@@ -2,9 +2,10 @@ import sys
 import os
 import subprocess
 import time
-from PyQt6.QtWidgets import QTabWidget, QStatusBar, QScrollArea, QMessageBox, QComboBox, QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
-from PyQt6.QtCore import QThread, QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QTextCursor, QDesktopServices, QIcon
+from PyQt6.QtWidgets import QApplication, QGraphicsScene, QGraphicsView, QGraphicsEllipseItem, QProgressBar, QTabWidget, QStatusBar, QScrollArea, QMessageBox, QComboBox, QTabBar, QTabWidget, QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTextEdit, QTextBrowser, QHBoxLayout, QSlider
+from PyQt6.QtCore import QRectF, QThread, QRect, QPropertyAnimation, pyqtProperty, Qt, QUrl, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QPainter, QColor, QTextCursor, QDesktopServices, QIcon, QFont
+
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
@@ -24,6 +25,7 @@ class Solution:
         self.score = []
         self.run_times = []
         self.n_values = []
+        self.status = 0
 
 
 confusion_matrix = [[ 2, 1 ], 
@@ -78,6 +80,8 @@ class Worker(QThread):
 
             self.solution.accuracy.append(self.compute_accuracy())
             self.solution.score.append(self.compute_score())
+            self.solution.status += 1
+
             self.data_ready.emit(i, n, run_time)
 
     def compute_score(self):
@@ -117,7 +121,7 @@ class MPLWidget2(QWidget):
 class GraphsWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.graphs = {"Accuracy": None, "Fitness": None, "F1": None, "Time": None}
+        self.graphs = {"Accuracy": None, "Score": None, "Time": None}
         self.tab_widget = QTabWidget()
 
         # Create a layout and add the tab widget to it
@@ -191,7 +195,9 @@ class ComboBoxWidget(QWidget):
         super().__init__(parent)
         self.layout = QHBoxLayout(self)
         self.combo_box = QComboBox()
-        self.combo_box.addItems(["naive", "FPTAS", "genetic algorithm", "PSO", "Differential Evolution"])
+        self.combo_box.addItems(["naive", "FPTAS", "genetic algorithm"])
+        #self.combo_box.addItems(["naive", "FPTAS", "genetic algorithm", "FPTAS+genetic algorithm"])
+
         self.delete_button = QPushButton("🗑️")
         self.delete_button.clicked.connect(self.delete_self)
         self.layout.addWidget(self.combo_box)
@@ -228,6 +234,41 @@ class AlgorithmSelectionWidget(QWidget):
             combo_box = combo_box_widget.combo_box
             algorithm_names.append(combo_box.currentText())
         return algorithm_names
+
+class CustomProgressBar(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._value = 0
+
+    def setValue(self, value):
+        self._value = value
+        self.update()
+
+    def value(self):
+        return self._value
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        rect = self.rect()
+
+        # Draw the background
+        painter.setBrush(QColor(230, 230, 230))
+        painter.drawRect(rect)
+
+        # Draw the progress bar
+        progress_rect = QRect(rect)
+        progress_rect.setWidth(rect.width() * self._value / 100.0)
+        painter.setBrush(QColor("#2ecc71"))
+        painter.drawRect(progress_rect)
+
+        # Draw the text
+        painter.setPen(Qt.GlobalColor.black)
+        font = QFont('Arial', 14, QFont.Weight.Bold)
+        painter.setFont(font)
+        text = f"{self._value:.2f}%"  
+        text_rect = painter.boundingRect(rect, Qt.AlignmentFlag.AlignCenter, text)
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
+
     
 class MainWindow(QWidget):
     def __init__(self, parent=None):
@@ -239,7 +280,7 @@ class MainWindow(QWidget):
         self.layout.addWidget(self.tab_widget)
         # Graphs
         self.time_graph = None
-        self.graphs = {"Accuracy": None, "Fitness": None, "F1": None, "Time": None}
+        self.graphs = {"Accuracy": None, "Fitness":  None, "Time": None}
         
         # Create tabs
         self.tab1_init()
@@ -295,10 +336,12 @@ class MainWindow(QWidget):
         self.right_layout.addWidget(self.algorithm_combo_widget)
 
         self.run_button = QPushButton("Run")
-        self.run_button.clicked.connect(self.run_tests)
+        self.run_button.clicked.connect(self.run_clicked)
         self.right_layout.addWidget(self.run_button)
-
         self.main_layout.addWidget(self.right_widget)
+
+        # Set defult dataset_path
+        self.file_drag_drop.setText(dataset_path)
         
     def tab2_init(self):
         self.tab2 = QWidget()
@@ -361,37 +404,6 @@ class MainWindow(QWidget):
             </p>
         """)
         self.tab3_layout.addWidget(self.about_text)
-        
-    def draw_cos_wave(self):
-        self.graph1.figure.clear()
-        ax = self.graph1.figure.add_subplot(111)
-        x = np.linspace(0, 10, 100)
-        line, = ax.plot(x, np.cos(x))
-
-        def animate(i):
-            line.set_ydata(np.cos(x + i / 10.0))  
-            return line,
-    
-        # Init only required for blitting to give a clean slate.
-        def init():
-            line.set_ydata(np.ma.array(x, mask=True))
-            return line,
-        ani = FuncAnimation(self.graph1.figure, animate, np.arange(1, 200), init_func=init,
-                            interval=50, blit=True)
-        self.graph1.canvas.draw()
-
-    def update_plot(self):
-        mean = self.mean_slider.value()
-        std_dev = self.std_slider.value()
-        # Clear the current plot
-        self.graph.figure.clear()
-        # Create a new plot
-        ax = self.graph.figure.add_subplot(111)
-        x = np.linspace(-10, 10, 100)
-        y = (1 / (np.sqrt(2 * np.pi * std_dev**2))) * np.exp(-((x - mean)**2) / (2 * std_dev**2))
-        ax.plot(x, y)
-        # Redraw the canvas
-        self.graph.canvas.draw()
 
     def open_link(self, url):
         QDesktopServices.openUrl(url)
@@ -405,10 +417,9 @@ class MainWindow(QWidget):
                 solution_path = "fptas.py"
             elif solution_name == "genetic algorithm":
                 solution_path = "ga.py"
-            elif solution_name == "PSO":
-                solution_path = "pso.py"
-            elif solution_name == "Differential Evolution":
-                solution_path = "de.py"
+            #elif solution_name == "FPTAS+genetic algorithm":
+            #    solution_path = "fptas+ga.py"
+
             solution = Solution(solution_name, solution_path)
             solutions.append(solution)
 
@@ -420,7 +431,49 @@ class MainWindow(QWidget):
             elif fullpath.endswith(".out"):
                 out_files.append(fullpath)
 
+    def run_clicked(self):
+        # Example logic to simulate running tests
+        self.run_tests()
+
+        # Hide and disable the current right widget
+        self.right_widget.setEnabled(False)
+        self.right_widget.setVisible(False)
+
+        # Create a new right widget for displaying progress
+        self.right_widget2 = QWidget()
+        self.right_widget2.setFixedWidth(400)
+
+        self.progress_layout = QVBoxLayout(self.right_widget2)
+
+        self.progress_label = QLabel("Track Progress of Solutions")
+        self.progress_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.progress_label.setFont(QFont('Arial', 20)) 
+
+        # Create a dictionary to hold the progress bars
+        self.progress_bars = {}
+
+        self.progress_layout.addWidget(self.progress_label)
+
+        for solution in solutions:
+            solution_label = QLabel(solution.name)
+            solution_progress_layout = QHBoxLayout()
+            solution_progress_layout.addWidget(solution_label)
+            custom_progress_bar = CustomProgressBar()
+            custom_progress_bar.setFixedHeight(30)
+            custom_progress_bar.setValue(solution.status / len(in_files) * 100.0)  
+            solution_progress_layout.addWidget(custom_progress_bar)
+            self.progress_layout.addLayout(solution_progress_layout)
+
+            # Add the progress bar to the dictionary
+            self.progress_bars[solution.name] = custom_progress_bar
+
+        self.progress_layout.addStretch(1)
+        self.main_layout.addWidget(self.right_widget2)
+        self.main_layout.update()
+
+
     def run_tests(self):
+        self.file_drag_drop.setText(dataset_path)
         self.locate_files()
         self.create_solutions()
        
@@ -428,7 +481,7 @@ class MainWindow(QWidget):
         for solution in solutions:
             worker = Worker(solution)
             worker.data_ready.connect(self.update_graph)
-            worker.finished.connect(self.worker_finished)
+            #worker.finished.connect(self.worker_finished)
             self.workers.append(worker)
 
         for worker in self.workers:
@@ -445,7 +498,7 @@ class MainWindow(QWidget):
         for solution in solutions:
             ax.scatter(solution.n_values, solution.run_times, label=solution.name)
         ax.legend()
-        ax.set_xlabel('n, size of the set S')
+        ax.set_xlabel('size of the set S')
         ax.set_ylabel('Run Time (seconds)')
         graph.draw()
 
@@ -454,7 +507,6 @@ class MainWindow(QWidget):
         graph.figure.clear()
         ax = graph.figure.add_subplot(111)
         for solution in solutions:
-            #ax.plot(solution.n_values, solution.run_times)
             ax.plot(range(1, len(solution.accuracy) + 1), solution.accuracy, label=solution.name)
         ax.legend()
         ax.set_xlabel('number of tests run')
@@ -464,23 +516,21 @@ class MainWindow(QWidget):
         # Score plot
         graph = self.graphs_widget.graphs["Score"]
         graph.figure.clear()
-
-        # Create a new axes on this figure
         ax = graph.figure.add_subplot(111)
         for solution in solutions:
-            #ax.plot(solution.n_values, solution.run_times)
             ax.plot(range(1, len(solution.score) + 1), solution.score, label=solution.name)
-
         ax.legend()
         ax.set_xlabel('number of tests run')
         ax.set_ylabel('Score')
-
-        # Redraw the canvas (this is equivalent to plt.show() in interactive mode)
         graph.draw()
 
-    def generate_data(self):
-        # Add code to generate and inspect data
-        pass
+        for solution in solutions:
+            # Get the progress bar for the solution
+            progress_bar = self.progress_bars[solution.name]
+
+            # Update the value of the progress bar
+            progress_bar.setValue(solution.status / len(in_files) * 100.0)
+        
     
     def choose_dataset(self):
         options = QFileDialog.Options()
