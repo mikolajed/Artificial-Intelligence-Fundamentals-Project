@@ -26,7 +26,7 @@ Then, activate it with
 source name_of_env/bin/activate
 ```
 
-Finally, intally all dependencies from `requirements.txt` using `pip` with
+Finally, install all dependencies from `requirements.txt` using `pip` with
 ```
 pip install -r requirements.txt
 ```
