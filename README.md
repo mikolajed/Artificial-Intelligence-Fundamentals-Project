@@ -41,6 +41,3 @@ Start the app with
 ```
 python3 main.py
 ```
-
-## Gallery
-![Test](other/screenshot2.png)
